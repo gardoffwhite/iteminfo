@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ค้นหาไอเท็ม+1-+7</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    input[type="text"] { padding: 5px; width: 300px; margin-bottom: 10px; }
+    button { padding: 5px 10px; margin-left: 10px; }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+      table-layout: auto;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      text-align: left;
+      min-width: 80px;
+      word-break: break-word;
+    }
+    th { background: #f2f2f2; }
+
+    #autocomplete-list {
+      position: absolute;
+      background: white;
+      border: 1px solid #ccc;
+      border-top: none;
+      max-height: 150px;
+      overflow-y: auto;
+      width: 300px;
+      z-index: 999;
+    }
+
+    .autocomplete-item {
+      padding: 5px;
+      cursor: pointer;
+    }
+
+    .autocomplete-item:hover {
+      background: #f2f2f2;
+    }
+  </style>
+</head>
+<body>
+  <h1>Item List with Autocomplete</h1>
+
+  <!-- ช่องค้นหา -->
+  <label for="search">ค้นหาชื่อไอเทม: </label><br />
+  <input type="text" id="search" placeholder="พิมพ์ชื่อไอเทม..." autocomplete="off" />
+  <div id="autocomplete-list"></div>
+  <button id="search-button">ค้นหา</button>
+
+  <!-- ตารางแสดงผล -->
+  <table id="item-table">
+    <thead><tr id="header-row"></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const SHEET_ID = "10oxRr8IT9VQ9j84MKAMZZpD7zn6wsugb";
+    const sheets = ["1", "2", "3", "4", "5", "6", "7"];
+    let allItems = [];
+
+    function fetchData(sheet) {
+      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${sheet}`;
+      return fetch(url)
+        .then(res => res.text())
+        .then(text => {
+          const json = JSON.parse(text.substring(47).slice(0, -2));
+          const rows = json.table.rows.map(row =>
+            row.c.map(cell => (cell ? cell.v : ""))
+          );
+          allItems = allItems.concat(rows);
+        });
+    }
+
+    function displayData(cols, rows) {
+      const headerRow = document.getElementById("header-row");
+      const tbody = document.querySelector("#item-table tbody");
+      tbody.innerHTML = "";
+      headerRow.innerHTML = "";
+
+      cols.forEach(col => {
+        const th = document.createElement("th");
+        th.textContent = col;
+        headerRow.appendChild(th);
+      });
+
+      rows.forEach(row => {
+        const tr = document.createElement("tr");
+        row.forEach(cell => {
+          const td = document.createElement("td");
+          td.textContent = cell;
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function searchItem(query) {
+      const filtered = allItems.filter(item => {
+        const name = item[1];
+        return name && name.toLowerCase().includes(query.toLowerCase());
+      });
+
+      if (filtered.length > 0) {
+        // ไม่แสดง ItemID (ตัด column แรกทิ้งทั้งจากหัวตารางและข้อมูล)
+        const headers = ["ItemName", "AP", "DP", "STR", "DEX", "SPT", "ESP", "HP", "SP", "ST", "AP%", "AttSpd"];
+        const rowsWithoutID = filtered.map(row => row.slice(1));
+        displayData(headers, rowsWithoutID);
+      } else {
+        alert("ไม่พบข้อมูลที่ตรงกับคำค้นหา");
+      }
+    }
+
+    document.getElementById("search-button").addEventListener("click", () => {
+      const query = document.getElementById("search").value;
+      if (query.trim()) {
+        searchItem(query);
+      } else {
+        alert("กรุณากรอกคำค้นหา");
+      }
+    });
+
+    // Autocomplete
+    const searchInput = document.getElementById("search");
+    const autocompleteList = document.getElementById("autocomplete-list");
+
+    searchInput.addEventListener("input", function () {
+      const query = this.value.toLowerCase();
+      autocompleteList.innerHTML = "";
+
+      if (!query) return;
+
+      const matches = allItems
+        .map(item => item[1])
+        .filter(name => name && name.toLowerCase().includes(query))
+        .filter((name, index, self) => self.indexOf(name) === index)
+        .slice(0, 10);
+
+      matches.forEach(name => {
+        const div = document.createElement("div");
+        div.className = "autocomplete-item";
+        div.textContent = name;
+        div.addEventListener("click", function () {
+          searchInput.value = name;
+          autocompleteList.innerHTML = "";
+          searchItem(name);
+        });
+        autocompleteList.appendChild(div);
+      });
+    });
+
+    document.addEventListener("click", function (e) {
+      if (e.target !== searchInput) {
+        autocompleteList.innerHTML = "";
+      }
+    });
+
+    // โหลดข้อมูลทั้งหมดก่อนใช้งาน
+    Promise.all(sheets.map(sheet => fetchData(sheet)))
+      .then(() => {
+        console.log("ข้อมูลทั้งหมดโหลดเสร็จแล้ว");
+      })
+      .catch(err => {
+        console.error("โหลดข้อมูลผิดพลาด:", err);
+      });
+  </script>
+</body>
+</html>
